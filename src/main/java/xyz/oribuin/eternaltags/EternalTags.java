@@ -1,10 +1,14 @@
 package xyz.oribuin.eternaltags;
 
+import dev.lone.itemsadder.api.Events.ItemsAdderLoadDataEvent;
 import dev.rosewood.rosegarden.RosePlugin;
 import dev.rosewood.rosegarden.manager.Manager;
 import dev.rosewood.rosegarden.utils.NMSUtil;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
 import org.bukkit.plugin.PluginManager;
 import xyz.oribuin.eternaltags.hook.Expansion;
+import xyz.oribuin.eternaltags.hook.ItemsAdderHook;
 import xyz.oribuin.eternaltags.listener.PlayerListeners;
 import xyz.oribuin.eternaltags.manager.CommandManager;
 import xyz.oribuin.eternaltags.manager.ConfigurationManager;
@@ -51,6 +55,16 @@ public class EternalTags extends RosePlugin {
 
         // Register Plugin Listeners
         pluginManager.registerEvents(new PlayerListeners(), this);
+        if (ItemsAdderHook.enabled()) {
+            pluginManager.registerEvents(new Listener() {
+                @EventHandler
+                public void onItemsAdderLoad(ItemsAdderLoadDataEvent event) {
+                        getLogger().info("Detected ItemsAdder load event...");
+                        reload();
+                }
+            }, this);
+        }
+
 
         // Register PlaceholderAPI Expansion
         new Expansion(this).register();

@@ -14,10 +14,12 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
+import xyz.oribuin.eternaltags.hook.ItemsAdderHook;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -142,6 +144,16 @@ public final class TagsUtils {
         return WordUtils.capitalizeFully(material.name().toLowerCase().replace("_", " "));
     }
 
+
+    private static ItemStack getBaseItem(ConfigurationSection config, String path) {
+        final String materialString = config.getString(path + ".material", "STONE");
+        if(materialString.contains("itemsadder:")) {
+            return ItemsAdderHook.parseItem(config.getString(path + ".material"));
+        }
+        Material material = Material.getMaterial(get(config, path + ".material", "STONE"));
+        return new ItemStack(Objects.requireNonNullElse(material, Material.STONE));
+    }
+
     /**
      * Get ItemStack from CommentedFileSection path
      *
@@ -152,12 +164,7 @@ public final class TagsUtils {
      * @return The itemstack
      */
     public static ItemStack getItemStack(ConfigurationSection config, String path, Player player, StringPlaceholders placeholders) {
-
-        ItemStack baseItem = new ItemStack(Material.STONE);
-        Material material = Material.getMaterial(get(config, path + ".material", "STONE"));
-        if (material != null) {
-            baseItem = new ItemStack(material);
-        }
+        ItemStack baseItem = getBaseItem(config,path);
 
         // Format the item lore
         List<String> lore = get(config, path + ".lore", List.of());
