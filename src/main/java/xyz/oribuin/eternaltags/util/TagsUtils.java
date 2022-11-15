@@ -147,8 +147,8 @@ public final class TagsUtils {
 
     private static ItemStack getBaseItem(ConfigurationSection config, String path) {
         final String materialString = config.getString(path + ".material", "STONE");
-        if(materialString.contains("itemsadder:")) {
-            return ItemsAdderHook.parseItem(config.getString(path + ".material","").replace("itemsadder:",""));
+        if (materialString.contains("itemsadder:")) {
+            return ItemsAdderHook.parseItem(config.getString(path + ".material", "").replace("itemsadder:", ""));
         }
         Material material = Material.getMaterial(get(config, path + ".material", "STONE"));
         return new ItemStack(Objects.requireNonNullElse(material, Material.STONE));
@@ -164,7 +164,7 @@ public final class TagsUtils {
      * @return The itemstack
      */
     public static ItemStack getItemStack(ConfigurationSection config, String path, Player player, StringPlaceholders placeholders) {
-        ItemStack baseItem = getBaseItem(config,path);
+        ItemStack baseItem = getBaseItem(config, path);
 
         // Format the item lore
         List<String> lore = get(config, path + ".lore", List.of());
@@ -185,8 +185,9 @@ public final class TagsUtils {
                 .setFlags(flags)
                 .glow(get(config, path + ".glow", false))
                 .setTexture(get(config, path + ".texture", null))
-                .setPotionColor(fromHex(get(config, path + ".potion-color", null)))
-                .setModel(get(config, path + ".model-data", -1));
+                .setPotionColor(fromHex(get(config, path + ".potion-color", null)));
+
+        //builder.setModel(get(config, path + ".model-data", -1)); TODO TEMP FIX FOR IA SUPPORT
 
         // Get item owner
         String owner = get(config, path + ".owner", null);
