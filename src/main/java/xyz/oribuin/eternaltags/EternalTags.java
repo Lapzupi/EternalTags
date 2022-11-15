@@ -55,15 +55,13 @@ public class EternalTags extends RosePlugin {
 
         // Register Plugin Listeners
         pluginManager.registerEvents(new PlayerListeners(), this);
-        if (ItemsAdderHook.enabled()) {
-            pluginManager.registerEvents(new Listener() {
-                @EventHandler
-                public void onItemsAdderLoad(ItemsAdderLoadDataEvent event) {
-                        getLogger().info("Detected ItemsAdder load event...");
-                        reload();
-                }
-            }, this);
-        }
+        pluginManager.registerEvents(new Listener() {
+            @EventHandler
+            public void onItemsAdderLoad(ItemsAdderLoadDataEvent event) {
+                getLogger().info("Detected ItemsAdder load event...");
+                reload();
+            }
+        }, this);
 
 
         // Register PlaceholderAPI Expansion

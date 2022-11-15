@@ -9,7 +9,6 @@ import org.bukkit.inventory.ItemStack;
  * @author sarhatabaot
  */
 public final class ItemsAdderHook {
-    private static final String pluginIdentifier = "itemsadder:";
 
     /**
      *
@@ -17,7 +16,7 @@ public final class ItemsAdderHook {
      * @return The parsed glyph
      */
     public static ItemStack parseItem(String item) {
-        CustomStack customStack = CustomStack.getInstance(pluginIdentifier + item);
+        CustomStack customStack = CustomStack.getInstance(item);
         if(customStack == null)
             return null;
         return customStack.getItemStack();

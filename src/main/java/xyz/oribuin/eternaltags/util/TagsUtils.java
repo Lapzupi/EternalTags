@@ -148,7 +148,7 @@ public final class TagsUtils {
     private static ItemStack getBaseItem(ConfigurationSection config, String path) {
         final String materialString = config.getString(path + ".material", "STONE");
         if(materialString.contains("itemsadder:")) {
-            return ItemsAdderHook.parseItem(config.getString(path + ".material"));
+            return ItemsAdderHook.parseItem(config.getString(path + ".material","").replace("itemsadder:",""));
         }
         Material material = Material.getMaterial(get(config, path + ".material", "STONE"));
         return new ItemStack(Objects.requireNonNullElse(material, Material.STONE));

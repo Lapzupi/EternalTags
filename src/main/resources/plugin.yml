@@ -10,3 +10,4 @@ libraries:
 softdepend:
   - PlaceholderAPI
   - Oraxen
+  - ItemsAdder
