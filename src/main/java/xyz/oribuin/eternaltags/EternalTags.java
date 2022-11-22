@@ -59,6 +59,7 @@ public class EternalTags extends RosePlugin {
             @EventHandler
             public void onItemsAdderLoad(ItemsAdderLoadDataEvent event) {
                 getLogger().info("Detected ItemsAdder load event...");
+                getLogger().info("Reloading EternalTags");
                 reload();
             }
         }, this);
