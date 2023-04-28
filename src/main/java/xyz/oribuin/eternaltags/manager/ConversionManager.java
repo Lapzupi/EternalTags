@@ -9,13 +9,12 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 import xyz.oribuin.eternaltags.obj.Tag;
+import xyz.oribuin.eternaltags.util.EventWaiter;
 
 import java.io.File;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.util.*;
 
 public class ConversionManager extends Manager {
 
@@ -43,7 +42,11 @@ public class ConversionManager extends Manager {
         this.loadConfiguration();
 
         // Delete the folder.
-        this.configFile.delete();
+        try {
+            Files.delete(this.configFile.toPath());
+        } catch (IOException e) {
+            rosePlugin.getLogger().severe(e::toString);
+        }
 
         final ConfigurationManager manager = this.rosePlugin.getManager(ConfigurationManager.class);
         manager.reload();
@@ -57,7 +60,7 @@ public class ConversionManager extends Manager {
 
     @Override
     public void disable() {
-
+        //nothing
     }
 
     private void loadConfiguration() {
@@ -126,18 +129,18 @@ public class ConversionManager extends Manager {
     }
 
     public Map<String, String> getRemappedOptions() {
-        return new LinkedHashMap<>() {{
-            this.put("default-tag", "default-tag");
-            this.put("formatted_placeholder", "formatted-placeholder");
-            this.put("remove-inaccessible-tags", "remove-inaccessible-tags");
-            this.put("mysql.enabled", "mysql-settings.enabled");
-            this.put("mysql.host", "mysql-settings.hostname");
-            this.put("mysql.port", "mysql-settings.port");
-            this.put("mysql.dbname", "mysql-settings.database-name");
-            this.put("mysql.username", "mysql-settings.user-name");
-            this.put("mysql.password", "mysql-settings.user-password");
-            this.put("mysql.ssl", "mysql-settings.use-ssl");
-        }};
+        LinkedHashMap<String, String> map = new LinkedHashMap<>();
+        map.put("default-tag", "default-tag");
+        map.put("formatted_placeholder", "formatted-placeholder");
+        map.put("remove-inaccessible-tags", "remove-inaccessible-tags");
+        map.put("mysql.enabled", "mysql-settings.enabled");
+        map.put("mysql.host", "mysql-settings.hostname");
+        map.put("mysql.port", "mysql-settings.port");
+        map.put("mysql.dbname", "mysql-settings.database-name");
+        map.put("mysql.username", "mysql-settings.user-name");
+        map.put("mysql.password", "mysql-settings.user-password");
+        map.put("mysql.ssl", "mysql-settings.use-ssl");
+        return map;
     }
 
     /**

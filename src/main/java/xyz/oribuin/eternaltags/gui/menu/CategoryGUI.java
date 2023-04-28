@@ -195,7 +195,7 @@ public class CategoryGUI extends PluginMenu {
 
             ItemStack item = TagsUtils.getItemStack(this.config, "categories." + category.getId() + ".display-item", player, placeholders.build());
             if (item == null) {
-                this.rosePlugin.logger.info("Failed to load category " + category.getId() + " for the gui, the display item is invalid, Using default value.");
+                this.rosePlugin.getLogger().info("Failed to load category " + category.getId() + " for the gui, the display item is invalid, Using default value.");
 
                 item = new ItemBuilder(Material.OAK_SIGN)
                         .setName(formatString(player, "#00B4DB" + category.getDisplayName()))

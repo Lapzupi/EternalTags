@@ -130,12 +130,12 @@ public final class TagsUtils {
     }
 
 
-    private static ItemStack getBaseItem(ConfigurationSection config, String path) {
-        final String materialString = config.getString(path + ".material", "STONE");
+    private static ItemStack getBaseItem(CommentedConfigurationSection config, final Player player, String path) {
+        final String materialString = ConfigUtil.getString(config, player,path + ".material", "STONE");
         if (materialString.contains("itemsadder:")) {
             return ItemsAdderHook.parseItem(config.getString(path + ".material", "").replace("itemsadder:", ""));
         }
-        Material material = Material.getMaterial(get(config, path + ".material", "STONE"));
+        Material material = Material.getMaterial(materialString);
         return new ItemStack(Objects.requireNonNullElse(material, Material.STONE));
     }
 
@@ -150,10 +150,7 @@ public final class TagsUtils {
      */
     @Nullable
     public static ItemStack getItemStack(@NotNull CommentedConfigurationSection config, @NotNull String path, @Nullable Player player, @Nullable StringPlaceholders placeholders) {
-        ItemStack baseItem = getBaseItem(config, path);
-        Material material = Material.getMaterial(PlaceholderAPI.setPlaceholders(player, config.getString(path + ".material", "")));
-        if (material == null)
-            return null;
+        ItemStack baseItem = getBaseItem(config, player, path);
 
         if (placeholders == null)
             placeholders = StringPlaceholders.empty();
@@ -173,14 +170,14 @@ public final class TagsUtils {
                 .toArray(ItemFlag[]::new);
 
         // Build the item stack
-        ItemBuilder builder = new ItemBuilder(material)
+        ItemBuilder builder = new ItemBuilder(baseItem)
                 .setName(format(player, config.getString(path + ".name"), placeholders))
                 .setLore(lore)
                 .setAmount(config.getInt(path + ".amount", 1))
                 .setFlags(flags)
                 .glow(Boolean.parseBoolean(format(player, config.getString(path + ".glow", "false"), placeholders)))
-                .setTexture(get(config, path + ".texture", null))
-                .setPotionColor(fromHex(get(config, path + ".potion-color", null)));
+                .setTexture(ConfigUtil.getString(config, player, path + ".texture", null))
+                .setPotionColor(fromHex(ConfigUtil.getString(config,player, path + ".potion-color", null)));
 
         //builder.setModel(get(config, path + ".model-data", -1)); TODO TEMP FIX FOR IA SUPPORT
 
@@ -271,7 +268,6 @@ public final class TagsUtils {
      * @param list The list to parse
      * @return The parsed list
      */
-    @SuppressWarnings("unchecked")
     public static List<Integer> parseList(List<String> list) {
         List<Integer> newList = new ArrayList<>();
         for (String s : list) {

@@ -82,6 +82,7 @@ bukkit {
     apiVersion = "1.19"
     description = "A simple tag plugin alternative to other Tag plugins (With Hex Support)"
     website = "https://www.spigotmc.org/resources/eternaltags.91842/" //https://github.com/Lapzupi/EternalTags
+    depend = listOf("PlaceholderAPI")
     softDepend = listOf("Vault", "PlaceholderAPI", "Oraxen", "ItemsAdder", "HeadDatabase")
 }
 
