@@ -1,6 +1,9 @@
 package xyz.oribuin.eternaltags.util;
 
+import dev.rosewood.rosegarden.RosePlugin;
+import dev.rosewood.rosegarden.config.CommentedConfigurationSection;
 import dev.rosewood.rosegarden.utils.HexUtils;
+import dev.rosewood.rosegarden.utils.NMSUtil;
 import dev.rosewood.rosegarden.utils.StringPlaceholders;
 import me.clip.placeholderapi.PlaceholderAPI;
 import org.apache.commons.lang3.text.WordUtils;
@@ -8,16 +11,25 @@ import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import xyz.oribuin.eternaltags.hook.ItemsAdderHook;
+import org.bukkit.util.io.BukkitObjectInputStream;
+import org.bukkit.util.io.BukkitObjectOutputStream;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -62,31 +74,6 @@ public final class TagsUtils {
         }
 
         return Color.fromRGB(awtColor.getRed(), awtColor.getGreen(), awtColor.getBlue());
-    }
-
-    /**
-     * Get a configuration value or default from the file config
-     *
-     * @param config The configuration file.
-     * @param path   The path to the value
-     * @param def    The default value if the original value doesnt exist
-     * @return The config value or default value.
-     */
-    @SuppressWarnings("unchecked")
-    public static <T> T get(FileConfiguration config, String path, T def) {
-        return config.get(path) != null ? (T) config.get(path) : def;
-    }
-
-    /**
-     * Get a value from a configuration section.
-     *
-     * @param section The configuration section
-     * @param path    The path to the option.
-     * @param def     The default value for the option.
-     * @return The config option or the default.
-     */
-    public static <T> T get(ConfigurationSection section, String path, T def) {
-        return section.get(path) != null ? (T) section.get(path) : def;
     }
 
     /**
@@ -163,51 +150,84 @@ public final class TagsUtils {
      * @param placeholders The placeholders
      * @return The itemstack
      */
-    public static ItemStack getItemStack(ConfigurationSection config, String path, Player player, StringPlaceholders placeholders) {
+    @Nullable
+    public static ItemStack getItemStack(@NotNull CommentedConfigurationSection config, @NotNull String path, @Nullable Player player, @Nullable StringPlaceholders placeholders) {
         ItemStack baseItem = getBaseItem(config, path);
+        Material material = Material.getMaterial(PlaceholderAPI.setPlaceholders(player, config.getString(path + ".material", "")));
+        if (material == null)
+            return null;
+
+        if (placeholders == null)
+            placeholders = StringPlaceholders.empty();
 
         // Format the item lore
-        List<String> lore = get(config, path + ".lore", List.of());
-        lore = lore.stream().map(s -> format(player, s, placeholders)).collect(Collectors.toList());
+        StringPlaceholders finalPlaceholders = placeholders;
+        List<String> lore = new ArrayList<>(config.getStringList(path + ".lore"))
+                .stream()
+                .map(s -> format(player, s, finalPlaceholders))
+                .toList();
 
         // Get item flags
-        ItemFlag[] flags = get(config, path + ".flags", new ArrayList<String>())
+        ItemFlag[] flags = config.getStringList(path + ".flags")
                 .stream()
                 .map(String::toUpperCase)
                 .map(ItemFlag::valueOf)
                 .toArray(ItemFlag[]::new);
 
         // Build the item stack
-        ItemBuilder builder = new ItemBuilder(baseItem)
-                .setName(format(player, get(config, path + ".name", null), placeholders))
+        ItemBuilder builder = new ItemBuilder(material)
+                .setName(format(player, config.getString(path + ".name"), placeholders))
                 .setLore(lore)
-                .setAmount(Math.max(get(config, path + ".amount", 1), 1))
+                .setAmount(config.getInt(path + ".amount", 1))
                 .setFlags(flags)
-                .glow(get(config, path + ".glow", false))
+                .glow(Boolean.parseBoolean(format(player, config.getString(path + ".glow", "false"), placeholders)))
                 .setTexture(get(config, path + ".texture", null))
                 .setPotionColor(fromHex(get(config, path + ".potion-color", null)));
 
         //builder.setModel(get(config, path + ".model-data", -1)); TODO TEMP FIX FOR IA SUPPORT
 
         // Get item owner
-        String owner = get(config, path + ".owner", null);
-        if (owner != null)
-            builder.setOwner(Bukkit.getOfflinePlayer(UUID.fromString(owner)));
+        String owner = config.getString(path + ".owner", null);
+        if (owner != null) {
+            if (owner.equalsIgnoreCase("self")) {
+                builder.setOwner(player);
+            } else {
+                if (NMSUtil.isPaper() && Bukkit.getOfflinePlayerIfCached(owner) != null)
+                    builder.setOwner(Bukkit.getOfflinePlayerIfCached(owner));
+                else
+                    builder.setOwner(Bukkit.getOfflinePlayer(owner));
+            }
+        }
 
-        // Get item enchantments
-        final ConfigurationSection enchants = config.getConfigurationSection(path + ".enchants");
+        CommentedConfigurationSection enchants = config.getConfigurationSection(path + ".enchants");
         if (enchants != null) {
             enchants.getKeys(false).forEach(key -> {
-                Enchantment enchant = Arrays.stream(Enchantment.values()).filter(e -> e.getKey().getKey().equalsIgnoreCase(key)).findFirst().orElse(null);
-
-                if (enchant == null)
+                Enchantment enchantment = Enchantment.getByKey(NamespacedKey.minecraft(key.toLowerCase()));
+                if (enchantment == null)
                     return;
 
-                builder.addEnchant(enchant, enchants.getInt(key));
+                builder.addEnchant(enchantment, enchants.getInt(key));
             });
         }
 
         return builder.create();
+    }
+
+    /**
+     * Parse an integer from an object safely
+     *
+     * @param object The object
+     * @return The integer
+     */
+    private static int parseInteger(Object object) {
+        try {
+            if (object instanceof Integer)
+                return (int) object;
+
+            return Integer.parseInt(object.toString());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     /**
@@ -217,7 +237,7 @@ public final class TagsUtils {
      * @param path   The path to the item
      * @return The itemstack
      */
-    public static ItemStack getItemStack(ConfigurationSection config, String path) {
+    public static ItemStack getItemStack(CommentedConfigurationSection config, String path) {
         return getItemStack(config, path, null, StringPlaceholders.empty());
     }
 
@@ -241,28 +261,170 @@ public final class TagsUtils {
      * @return The formatted string
      */
     public static String format(Player player, String text, StringPlaceholders placeholders) {
+        if (text == null)
+            return null;
+
         return HexUtils.colorify(PlaceholderAPI.setPlaceholders(player, placeholders.apply(text)));
     }
 
     /**
-     * Format a List<String> into a single String
+     * Parse a list of strings from 1-1 to a stringlist
      *
-     * @param list The list
-     * @return the new formatted string.
+     * @param list The list to parse
+     * @return The parsed list
      */
-    public static String formatList(List<String> list) {
-        return String.join(", ", list);
+    @SuppressWarnings("unchecked")
+    public static List<Integer> parseList(List<String> list) {
+        List<Integer> newList = new ArrayList<>();
+        for (String s : list) {
+            String[] split = s.split("-");
+            if (split.length != 2) {
+                continue;
+            }
+
+            newList.addAll(getNumberRange(Integer.parseInt(split[0]), Integer.parseInt(split[1])));
+        }
+
+        return newList;
     }
 
+    /**
+     * Get a range of numbers as a list
+     *
+     * @param start The start of the range
+     * @param end   The end of the range
+     * @return A list of numbers
+     */
+    public static List<Integer> getNumberRange(int start, int end) {
+        if (start == end) {
+            return List.of(start);
+        }
+
+        final List<Integer> list = new ArrayList<>();
+        for (int i = start; i <= end; i++) {
+            list.add(i);
+        }
+
+        return list;
+    }
 
     /**
-     * Format a List<String> into a single String
+     * Format a string list into a single string.
      *
-     * @param list The list
-     * @return the new formatted string.
+     * @param list      The strings being converted
+     * @param delimiter The delimiter between each string
+     * @return the converted string.
      */
-    public static String formatList(String[] list) {
-        return formatList(Arrays.asList(list));
+    public static String formatList(List<String> list, String delimiter) {
+        return String.join(delimiter, list);
+    }
+
+    /**
+     * Get an enum from a string value
+     *
+     * @param enumClass The enum class
+     * @param name      The name of the enum
+     * @param <T>       The enum type
+     * @return The enum
+     */
+    public static <T extends Enum<T>> T getEnum(Class<T> enumClass, String name) {
+        for (T t : enumClass.getEnumConstants()) {
+            if (t.name().equalsIgnoreCase(name)) {
+                return t;
+            }
+        }
+
+        return null;
+    }
+
+    public static byte[] serializeItem(@Nullable ItemStack itemStack) {
+        if (itemStack == null)
+            return new byte[0];
+
+        byte[] data = new byte[0];
+        try (ByteArrayOutputStream stream = new ByteArrayOutputStream();
+             BukkitObjectOutputStream oos = new BukkitObjectOutputStream(stream)) {
+            oos.writeObject(itemStack);
+            data = stream.toByteArray();
+        } catch (IOException ignored) {
+        }
+
+        return data;
+    }
+
+    @Nullable
+    public static ItemStack deserializeItem(byte[] data) {
+        if (data == null || data.length == 0)
+            return null;
+
+        ItemStack itemStack = null;
+        try (ByteArrayInputStream stream = new ByteArrayInputStream(data);
+             BukkitObjectInputStream ois = new BukkitObjectInputStream(stream)) {
+            itemStack = (ItemStack) ois.readObject();
+        } catch (IOException | ClassNotFoundException ignored) {
+        }
+
+        return itemStack;
+    }
+
+    /**
+     * Create a file from the plugin's resources
+     *
+     * @param rosePlugin The plugin
+     * @param fileName   The file name
+     * @return The file
+     */
+    @NotNull
+    public static File createFile(@NotNull RosePlugin rosePlugin, @NotNull String fileName) {
+        File file = new File(rosePlugin.getDataFolder(), fileName); // Create the file
+
+        if (file.exists())
+            return file;
+
+        try (InputStream inStream = rosePlugin.getResource(fileName)) {
+            if (inStream == null) {
+                file.createNewFile();
+                return file;
+            }
+
+            Files.copy(inStream, Paths.get(file.getAbsolutePath()));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return file;
+    }
+
+    /**
+     * Create a file in a folder from the plugin's resources
+     *
+     * @param rosePlugin The plugin
+     * @param folderName The folder name
+     * @param fileName   The file name
+     * @return The file
+     */
+    @NotNull
+    public static File createFile(@NotNull RosePlugin rosePlugin, @NotNull String folderName, @NotNull String fileName) {
+        File folder = new File(rosePlugin.getDataFolder(), folderName); // Create the folder
+        File file = new File(folder, fileName); // Create the file
+        if (!folder.exists())
+            folder.mkdirs();
+
+        if (file.exists())
+            return file;
+
+        try (InputStream stream = rosePlugin.getResource(folderName + "/" + fileName)) {
+            if (stream == null) {
+                file.createNewFile();
+                return file;
+            }
+
+            Files.copy(stream, Paths.get(file.getAbsolutePath()));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return file;
     }
 
 }

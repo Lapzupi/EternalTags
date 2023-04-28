@@ -5,42 +5,57 @@ import dev.rosewood.rosegarden.config.CommentedConfigurationSection;
 import dev.rosewood.rosegarden.config.CommentedFileConfiguration;
 import dev.rosewood.rosegarden.manager.Manager;
 import dev.rosewood.rosegarden.utils.HexUtils;
+import dev.rosewood.rosegarden.utils.StringPlaceholders;
 import me.clip.placeholderapi.PlaceholderAPI;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import xyz.oribuin.eternaltags.event.TagDeleteEvent;
 import xyz.oribuin.eternaltags.event.TagSaveEvent;
 import xyz.oribuin.eternaltags.hook.OraxenHook;
+import xyz.oribuin.eternaltags.hook.VaultHook;
+import xyz.oribuin.eternaltags.listener.BungeeListener;
 import xyz.oribuin.eternaltags.manager.ConfigurationManager.Setting;
+import xyz.oribuin.eternaltags.obj.Category;
 import xyz.oribuin.eternaltags.obj.Tag;
+import xyz.oribuin.eternaltags.obj.TagUser;
+import xyz.oribuin.eternaltags.util.TagsUtils;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class TagsManager extends Manager {
 
+    // this is starting to look like im an iridium dev
+    // Cached Tags and Categories
     private final Map<String, Tag> cachedTags = new HashMap<>();
+    private final Map<String, Category> cachedCategories = new HashMap<>();
     private final Random random = new Random();
 
-    private CommentedFileConfiguration config;
-    private boolean removeInaccessible;
+    // Configuration Files for tags.yml and categories.yml
+    private File tagsFile, categoriesFile;
+    private CommentedFileConfiguration tagConfig, categoryConfig;
+
+    // Other Values.
+    private boolean categoriesEnabled = true;
+    private Category defaultCategory, globalCategory;
+    private Map<String, String> defaultTagGroups;
+    private boolean usingDefaultTags;
 
     public TagsManager(RosePlugin plugin) {
         super(plugin);
@@ -48,40 +63,30 @@ public class TagsManager extends Manager {
 
     @Override
     public void reload() {
+        // Load the default tag groups
+        this.defaultTagGroups = new HashMap<>();
+        CommentedConfigurationSection groupSection = Setting.DEFAULT_TAG_GROUPS.getSection();
+        groupSection.getKeys(false).forEach(s -> this.defaultTagGroups.put(s.toLowerCase(), groupSection.getString(s)));
+
+        // Check if we're using default tags
+        this.usingDefaultTags = this.usingGroupDefaults() || !Setting.DEFAULT_TAG.getString().equalsIgnoreCase("none");
+
+        // Load categories if enabled, Categories are not saved in mysql so we're not gonna load categories first.
+        this.categoriesFile = TagsUtils.createFile(this.rosePlugin, "categories.yml");
+        this.categoryConfig = CommentedFileConfiguration.loadConfiguration(this.categoriesFile);
+        this.loadCategories();
 
         // Load all tags from mysql instead of tags.yml
         if (Setting.MYSQL_TAGDATA.getBoolean()) {
-            this.cachedTags.clear();
-            this.cachedTags.putAll(this.rosePlugin.getManager(DataManager.class).loadTagData());
+            DataManager dataManager = this.rosePlugin.getManager(DataManager.class);
+            dataManager.loadTagData(this.cachedTags);
             return;
         }
 
-        final File file = new File(this.rosePlugin.getDataFolder(), "tags.yml");
-        boolean newFile = false;
-        try {
-            if (!file.exists()) {
-                file.createNewFile();
-                newFile = true;
-            }
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
-
-        this.config = CommentedFileConfiguration.loadConfiguration(file);
-        if (newFile) {
-            this.getDefaultTags().forEach((path, object) -> {
-                if (path.startsWith("#"))
-                    this.config.addPathedComments(path, object.toString());
-                else
-                    this.config.set(path, object);
-            });
-
-            this.config.save();
-        }
-
-        // Load plugin tags.
+        // Create the tags.yml
+        this.tagsFile = TagsUtils.createFile(this.rosePlugin, "tags.yml");
+        this.tagConfig = CommentedFileConfiguration.loadConfiguration(this.tagsFile);
         this.loadTags();
-        this.removeInaccessible = ConfigurationManager.Setting.REMOVE_TAGS.getBoolean();
     }
 
     @Override
@@ -95,21 +100,18 @@ public class TagsManager extends Manager {
     public void loadTags() {
         this.cachedTags.clear();
 
-        CommentedConfigurationSection tagSection = this.config.getConfigurationSection("tags");
+        CommentedConfigurationSection tagSection = this.tagConfig.getConfigurationSection("tags");
         if (tagSection == null) {
-            this.rosePlugin.getLogger().severe("Couldn't find tags configuration section.");
+            this.rosePlugin.getLogger().severe("WARNING: We could not find any tags in the tags.yml file. Please make sure you have at least one tag saved.");
             return;
         }
 
-        for (String key : tagSection.getKeys(false)) {
-            String name = tagSection.getString(key + ".name");
+        tagSection.getKeys(false).forEach(key -> {
+            String name = tagSection.getString(key + ".name", key);
             String tag = tagSection.getString(key + ".tag");
 
-            if (name == null)
-                name = key;
-
-            if (tag == null)
-                continue;
+            if (name == null || tag == null)
+                return;
 
             final Tag obj = new Tag(key.toLowerCase(), name, tag);
             List<String> description = tagSection.get(key + ".description") instanceof String
@@ -117,23 +119,92 @@ public class TagsManager extends Manager {
                     : tagSection.getStringList(key + ".description");
 
             obj.setDescription(description);
+            obj.setPermission(tagSection.getString(key + ".permission", null));
+            obj.setOrder(tagSection.getInt(key + ".order", -1));
+            obj.setHandIcon(tagSection.getBoolean(key + ".hand-icon", false));
 
-            if (tagSection.getString(key + ".permission") != null)
-                obj.setPermission(tagSection.getString(key + ".permission"));
+            String category = tagSection.getString(key + ".category", null);
+            obj.setCategory(category == null ? this.defaultCategory.getId() : category.toLowerCase());
 
-            if (tagSection.getString(key + ".order") != null)
-                obj.setOrder(tagSection.getInt(key + ".order"));
 
-            final String iconName = tagSection.getString(key + ".icon");
-            if (iconName != null)
-                obj.setIcon(Material.matchMaterial(iconName) != null ? Material.matchMaterial(iconName) : Material.NAME_TAG);
+            // Icons can either be a material or a byte array
+            Object icon = tagSection.get(key + ".icon");
+            if (icon != null) {
+                // Read the material from the string
+                if (icon instanceof String iconString) {
+                    Material material = Material.matchMaterial(iconString);
+                    if (material != null)
+                        obj.setIcon(new ItemStack(material));
+                }
 
-            if (OraxenHook.enabled()) {
-                obj.setTag(OraxenHook.parseGlyph(tag));
+                // Read from a configuration section
+                CommentedConfigurationSection iconSection = tagSection.getConfigurationSection(key + ".icon");
+                if (iconSection != null && iconSection.getKeys(false).size() > 0) {
+                    ItemStack itemStack = TagsUtils.getItemStack(tagSection, key + ".icon");
+                    if (itemStack != null)
+                        obj.setIcon(itemStack);
+                }
+
+                // Read from a byte array
+                if (icon instanceof byte[] iconBytes && obj.isHandIcon()) {
+                    ItemStack itemStack = TagsUtils.deserializeItem(iconBytes);
+                    if (itemStack != null)
+                        obj.setIcon(itemStack);
+                }
             }
 
+            if (OraxenHook.enabled())
+                obj.setTag(OraxenHook.parseGlyph(tag));
+
             this.cachedTags.put(key.toLowerCase(), obj);
+        });
+    }
+
+    /**
+     * Load all the categories from the plugin config.
+     */
+    public void loadCategories() {
+        this.cachedCategories.clear();
+
+        CommentedConfigurationSection categorySection = this.categoryConfig.getConfigurationSection("categories");
+        if (categorySection == null) {
+            this.rosePlugin.getLogger().info("No categories found in the categories.yml file, Categories will be disabled.");
+            this.categoriesEnabled = false;
+            return;
         }
+
+        categorySection.getKeys(false).forEach(key -> {
+            String displayName = categorySection.getString(key + ".display-name", key);
+            int order = categorySection.getInt(key + ".order", -1);
+            boolean isDefault = categorySection.getBoolean(key + ".default", false);
+            boolean isGlobal = categorySection.getBoolean(key + ".global", false);
+            String permission = categorySection.getString(key + ".permission", null);
+            boolean bypass = categorySection.getBoolean(key + ".unlocks-all-tags", false);
+
+            Category obj = new Category(key.toLowerCase());
+            obj.setDisplayName(displayName);
+            obj.setOrder(order);
+            obj.setDefault(isDefault);
+            obj.setGlobal(isGlobal);
+            obj.setPermission(permission);
+            obj.setBypassPermission(bypass);
+
+            this.cachedCategories.put(key.toLowerCase(), obj);
+        });
+
+        // Check if the default category exists
+        this.defaultCategory = this.cachedCategories.values().stream()
+                .filter(Category::isDefault)
+                .findFirst()
+                .orElse(null);
+
+        // Check if the global category exists
+        this.globalCategory = this.cachedCategories.values().stream()
+                .filter(Category::isGlobal)
+                .findFirst()
+                .orElse(null);
+
+        this.categoriesEnabled = this.cachedCategories.size() > 0;
     }
 
     /**
@@ -148,20 +219,66 @@ public class TagsManager extends Manager {
         if (event.isCancelled())
             return false;
 
+        if (tag.getCategory() == null && this.defaultCategory != null)
+            tag.setCategory(this.defaultCategory.getId());
+
+        this.cachedTags.put(tag.getId(), tag);
+
+        // Send the tag to bungee if enabled.
+        if (Setting.PLUGIN_MESSAGING.getBoolean()) {
+            BungeeListener.modifyTag(tag);
+        }
+
         // Save to mysql instead of tags.yml
         if (Setting.MYSQL_TAGDATA.getBoolean()) {
             this.rosePlugin.getManager(DataManager.class).saveTagData(tag);
+            return true;
         }
 
-        this.cachedTags.put(tag.getId(), tag);
-        this.config.set("tags." + tag.getId() + ".name", tag.getName());
-        this.config.set("tags." + tag.getId() + ".tag", tag.getTag());
-        this.config.set("tags." + tag.getId() + ".description", tag.getDescription());
-        this.config.set("tags." + tag.getId() + ".permission", tag.getPermission());
-        this.config.set("tags." + tag.getId() + ".order", tag.getOrder());
-        this.config.save();
+        return this.saveToConfig(tag);
+    }
 
+    /**
+     * Save a tag to the tags.yml file.
+     *
+     * @param tag The tag being saved.
+     */
+    public boolean saveToConfig(Tag tag) {
+        if (this.tagConfig == null)
+            return false;
+
+        this.tagConfig.set("tags." + tag.getId() + ".name", tag.getName());
+        this.tagConfig.set("tags." + tag.getId() + ".tag", tag.getTag());
+        this.tagConfig.set("tags." + tag.getId() + ".description", tag.getDescription());
+        this.tagConfig.set("tags." + tag.getId() + ".permission", tag.getPermission());
+        this.tagConfig.set("tags." + tag.getId() + ".order", tag.getOrder());
+        this.tagConfig.set("tags." + tag.getId() + ".category", tag.getCategory());
+        this.tagConfig.set("tags." + tag.getId() + ".hand-icon", tag.isHandIcon());
+
+        if (tag.getIcon() != null && tag.isHandIcon()) // Only save the icon if it's a hand icon to prevent overwriting config defined items.
+            this.tagConfig.set("tags." + tag.getId() + ".icon", TagsUtils.serializeItem(tag.getIcon()));
+
+        this.tagConfig.save(this.tagsFile);
         return true;
+    }
+
+    /**
+     * Save & Cache a category into the categories file.
+     *
+     * @param cat The category being saved.
+     */
+    public void saveCategory(Category cat) {
+        if (this.categoryConfig == null)
+            return;
+
+        this.cachedCategories.put(cat.getId(), cat);
+        this.categoryConfig.set("categories." + cat.getId() + ".display-name", cat.getDisplayName());
+        this.categoryConfig.set("categories." + cat.getId() + ".order", cat.getOrder());
+        this.categoryConfig.set("categories." + cat.getId() + ".default", cat.isDefault());
+        this.categoryConfig.set("categories." + cat.getId() + ".global", cat.isGlobal());
+        this.categoryConfig.set("categories." + cat.getId() + ".permission", cat.getPermission());
+        this.categoryConfig.set("categories." + cat.getId() + ".unlocks-all-tags", cat.isBypassPermission());
+        this.categoryConfig.save(this.categoriesFile);
     }
 
     /**
@@ -172,9 +289,13 @@ public class TagsManager extends Manager {
     public void updateActiveTag(Tag tag) {
         final DataManager data = this.rosePlugin.getManager(DataManager.class);
 
-        for (Map.Entry<UUID, Tag> entry : data.getCachedUsers().entrySet()) {
-            if (entry.getValue().getId().equalsIgnoreCase(tag.getId()))
-                data.getCachedUsers().put(entry.getKey(), tag);
+        for (TagUser user : data.getCachedUsers().values()) {
+            if (user == null)
+                continue;
+
+            if (user.getActiveTag() != null && user.getActiveTag().equalsIgnoreCase(tag.getId())) {
+                user.setActiveTag(tag.getId());
+            }
         }
     }
 
@@ -197,15 +318,24 @@ public class TagsManager extends Manager {
 
         if (Setting.MYSQL_TAGDATA.getBoolean()) {
             this.rosePlugin.getManager(DataManager.class).saveTagData(tags);
+            return;
+        }
+
+        // Send the tags to bungee if enabled.
+        if (Setting.PLUGIN_MESSAGING.getBoolean()) {
+            tags.values().forEach(BungeeListener::modifyTag);
         }
 
         CompletableFuture.runAsync(() -> tags.forEach((id, tag) -> {
-            this.config.set("tags." + id + ".name", tag.getName());
-            this.config.set("tags." + id + ".tag", tag.getTag());
-            this.config.set("tags." + id + ".description", tag.getDescription());
-            this.config.set("tags." + id + ".permission", tag.getPermission());
-            this.config.set("tags." + id + ".order", tag.getOrder());
-        })).thenRun(() -> this.config.save());
+            this.tagConfig.set("tags." + id + ".name", tag.getName());
+            this.tagConfig.set("tags." + id + ".tag", tag.getTag());
+            this.tagConfig.set("tags." + id + ".description", tag.getDescription());
+            this.tagConfig.set("tags." + id + ".permission", tag.getPermission());
+            this.tagConfig.set("tags." + id + ".order", tag.getOrder());
+            this.tagConfig.set("tags." + id + ".hand-icon", tag.isHandIcon());
+            this.tagConfig.set("tags." + id + ".icon", TagsUtils.serializeItem(tag.getIcon()));
+            this.tagConfig.set("tags." + id + ".category", tag.getCategory());
+        })).thenRun(() -> this.tagConfig.save(this.tagsFile));
     }
 
     /**
@@ -223,6 +353,9 @@ public class TagsManager extends Manager {
         if (event.isCancelled())
             return;
 
+        if (Setting.PLUGIN_MESSAGING.getBoolean()) {
+            BungeeListener.deleteTag(id);
+        }
 
         // remove anyone with the tag active.
         this.rosePlugin.getManager(DataManager.class).deleteUserTag(id);
@@ -234,23 +367,25 @@ public class TagsManager extends Manager {
             return;
         }
 
-        this.config.set("tags." + id, null);
-        this.config.save();
+        this.tagConfig.set("tags." + id, null);
+        this.tagConfig.save(this.tagsFile);
+    }
+
+    public void clearTagFromUsers(String id) {
+        this.rosePlugin.getManager(DataManager.class).deleteUserTag(id);
     }
 
     /**
      * Wipes all the tags from the tags.yml
      */
     public void wipeTags() {
-
         if (Setting.MYSQL_TAGDATA.getBoolean()) {
             this.rosePlugin.getManager(DataManager.class).deleteAllTagData();
             return;
         }
 
-        CompletableFuture.runAsync(() -> this.cachedTags.forEach((id, tag)
-                -> this.config.set("tags." + id, null))).thenRun(()
-                -> this.config.save());
+        CompletableFuture.runAsync(() -> this.cachedTags.forEach((id, tag) -> this.tagConfig.set("tags." + id, null)))
+                .thenRun(() -> this.tagConfig.save(this.tagsFile));
 
         this.cachedTags.clear();
     }
@@ -260,16 +395,80 @@ public class TagsManager extends Manager {
      *
      * @param uuid The UUID of the player.
      * @return The active tag if present
+     * @deprecated Use {@link TagsManager#getUserTag(UUID)} instead.
      */
     @Nullable
+    @Deprecated
     public Tag getTagFromUUID(UUID uuid) {
-        // I could return this.getTag(player.getUniqueId()); but its *slightly* more efficient for the removeInaccessible option
-        final DataManager dataManager = this.rosePlugin.getManager(DataManager.class);
-        Tag tag = dataManager.getCachedUsers().get(uuid);
-        if (tag == null)
-            dataManager.loadUser(uuid);
+        return this.getUserTag(uuid);
+    }
 
-        return dataManager.getCachedUsers().get(uuid);
+    /**
+     * Get a tag by the UUID, If the user isn't cached, return null.
+     *
+     * @param uuid The UUID of the player.
+     * @return The active tag if present
+     * @since 1.1.6
+     */
+    @Nullable
+    public Tag getUserTag(@NotNull UUID uuid) {
+        TagUser user = this.rosePlugin.getManager(DataManager.class).getCachedUsers().get(uuid);
+        if (user == null)
+            return null;
+
+        return this.getTagFromId(user.getActiveTag());
+    }
+
+    /**
+     * Get a tag by the player, this method is intended to be used for checking
+     * if a player needs to have their tag updated. (Remove Inactive Tags or Default Tags)
+     *
+     * @param player The player object.
+     * @return The active tag if present
+     */
+    @Nullable
+    public Tag getUserTag(@NotNull Player player) {
+        DataManager dataManager = this.rosePlugin.getManager(DataManager.class);
+        TagUser user = dataManager.getCachedUsers().computeIfAbsent(player.getUniqueId(), k -> new TagUser(player));
+        Tag tag = this.getTagFromId(user.getActiveTag());
+
+        // Check if the player is using a default tag.
+        if (user.isUsingDefaultTag() && this.usingDefaultTags) {
+            tag = this.getDefaultTag(player);
+        }
+
+        // Remove the tag if the player doesn't have permission to use it.
+        if (Setting.REMOVE_TAGS.getBoolean() && tag != null && !this.canUseTag(player, tag)) {
+            dataManager.removeUser(player.getUniqueId());
+            user.setActiveTag(null); // Remove the tag from the user.
+            user.setUsingDefaultTag(false); // Remove the default tag flag.
+            tag = null; // Set the tag to null.
+        }
+
+        // Use default tag if no active tag found.
+        if (tag == null && this.usingDefaultTags) {
+            tag = this.getDefaultTag(player);
+            if (tag == null)
+                return null;
+
+            user.setActiveTag(tag.getId());
+            user.setUsingDefaultTag(true);
+        }
+
+        dataManager.getCachedUsers().put(player.getUniqueId(), user);
+        return tag;
+    }
+
+    /**
+     * Get a tag by the offline player object, If the user isn't cached, return null.
+     *
+     * @param player The offline player object.
+     * @return The active tag if present
+     * @since 1.1.6
+     */
+    @Nullable
+    public Tag getOfflineUserTag(@NotNull OfflinePlayer player) {
+        return this.getUserTag(player.getUniqueId());
     }
 
     /**
@@ -277,19 +476,12 @@ public class TagsManager extends Manager {
      *
      * @param offlinePlayer The player.
      * @return The active tag if present
+     * @deprecated Use {@link TagsManager#getOfflineUserTag(OfflinePlayer)} instead.
      */
     @Nullable
+    @Deprecated
     public Tag getPlayersTag(@NotNull OfflinePlayer offlinePlayer) {
-        Tag tag = this.rosePlugin.getManager(DataManager.class).getCachedUsers().get(offlinePlayer.getUniqueId());
-        if (tag == null)
-            return this.getDefaultTag(offlinePlayer);
-
-        // this might be very inefficient, we'll see.
-        final Player player = offlinePlayer.getPlayer();
-        if (this.removeInaccessible && player != null && !player.hasPermission(tag.getPermission()))
-            return this.getDefaultTag(offlinePlayer);
-
-        return tag;
+        return this.getOfflineUserTag(offlinePlayer);
     }
 
     /**
@@ -298,7 +490,7 @@ public class TagsManager extends Manager {
      * @param uuid The UUID of the player.
      * @param tag  The tag of the user.
      */
-    public void setTag(UUID uuid, Tag tag) {
+    public void setTag(@NotNull UUID uuid, @NotNull Tag tag) {
         this.rosePlugin.getManager(DataManager.class).saveUser(uuid, tag);
     }
 
@@ -340,14 +532,12 @@ public class TagsManager extends Manager {
     @NotNull
     public Map<String, Tag> getUsersFavourites(UUID uuid) {
         final Map<String, Tag> favourites = new HashMap<>();
-        Set<Tag> tags = this.rosePlugin.getManager(DataManager.class).getCachedFavourites().get(uuid);
+        final TagUser user = this.rosePlugin.getManager(DataManager.class).getCachedUsers().getOrDefault(uuid, new TagUser(uuid));
 
-        if (tags == null || tags.isEmpty())
-            return favourites;
-
-        tags.stream()
+        user.getFavourites().stream()
                 .filter(Objects::nonNull)
-                .forEach(tag -> favourites.put(tag.getId().toLowerCase(), tag));
+                .forEach(tag -> favourites.put(tag, this.getTagFromId(tag)));
+
         return favourites;
     }
 
@@ -359,11 +549,11 @@ public class TagsManager extends Manager {
      */
     @NotNull
     public List<Tag> getPlayerTags(@Nullable Player player) {
-        if (player == null)
+        if (player == null || player.hasPermission("eternaltags.tags.*"))
             return new ArrayList<>(this.cachedTags.values());
 
         return this.cachedTags.values().stream()
-                .filter(entry -> player.hasPermission(entry.getPermission()))
+                .filter(entry -> this.canUseTag(player, entry))
                 .collect(Collectors.toList());
     }
 
@@ -384,27 +574,67 @@ public class TagsManager extends Manager {
      * @return An optional tag.
      */
     @Nullable
-    public Tag getTagFromId(String id) {
+    public Tag getTagFromId(@Nullable String id) {
+        if (id == null)
+            return null;
+
         return this.cachedTags.get(id.toLowerCase());
     }
 
+    @Nullable
+    public Tag getDefaultTag(@NotNull Player player) {
+        if (!this.usingDefaultTags) // Default tags are disabled.
+            return null;
+
+        String defaultTagID = Setting.DEFAULT_TAG.getString();
+
+        // Check if the default tag is a group.
+        if (VaultHook.isEnabled() && !this.defaultTagGroups.isEmpty()) {
+            String group = VaultHook.getPrimaryGroup(player); // Get the highest group of the player.
+
+            if (group != null && this.defaultTagGroups.containsKey(group.toLowerCase())) {
+                String tagId = this.defaultTagGroups.get(group.toLowerCase()); // Get the tag id from the group.
+                return switch (tagId) {
+                    case "none" -> this.getTagFromId(defaultTagID);
+                    case "random" -> this.getRandomTag(player);
+                    default -> this.getTagFromId(tagId);
+                };
+            }
+        }
+
+        return switch (defaultTagID) {
+            case "none" -> null;
+            case "random" -> this.getRandomTag(player);
+            default -> this.getTagFromId(defaultTagID);
+        };
+    }
+
     /**
-     * Get the default tag for a player.
+     * Get the default tag for an offline player.
      *
      * @param player The player
      * @return The default tag.
      */
+    @Nullable
     public Tag getDefaultTag(@Nullable OfflinePlayer player) {
-        String defaultTagID = ConfigurationManager.Setting.DEFAULT_TAG.getString();
+        String defaultTagID = Setting.DEFAULT_TAG.getString();
 
-        if (defaultTagID == null || defaultTagID.equalsIgnoreCase("none"))
-            return null;
+        return switch (defaultTagID) {
+            case "none" -> null;
+            case "random" -> this.getRandomTag(player);
+            default -> this.getTagFromId(defaultTagID);
+        };
+    }
 
-        if (defaultTagID.equalsIgnoreCase("random")) {
-            return this.getRandomTag(player);
-        }
+    /**
+     * @return Check if the plugin is using group defaults.
+     */
+    public boolean usingGroupDefaults() {
+        if (this.defaultTagGroups.isEmpty()) // No groups are set.
+            return false;
 
-        return this.getTagFromId(defaultTagID);
+        // Check if all the groups are set to none.
+        return !this.defaultTagGroups.values().stream().allMatch(tagId -> tagId.equalsIgnoreCase("none"));
     }
 
     /**
@@ -459,10 +689,10 @@ public class TagsManager extends Manager {
      * @return The display tag.
      */
     public String getDisplayTag(@Nullable Tag tag, OfflinePlayer player, @NotNull String placeholder) {
-        return HexUtils.colorify(PlaceholderAPI.setPlaceholders(player, tag != null
-                ? Setting.TAG_PREFIX.getString() + tag.getTag() + Setting.TAG_SUFFIX.getString()
-                : placeholder)
-        );
+        if (tag == null)
+            return placeholder;
+
+        return HexUtils.colorify(PlaceholderAPI.setPlaceholders(player, this.getTagPlaceholders(tag).apply(Setting.TAG_PREFIX.getString() + tag.getTag() + Setting.TAG_SUFFIX.getString())));
     }
 
     /**
@@ -477,50 +707,229 @@ public class TagsManager extends Manager {
     }
 
     /**
-     * Get the default tags for the plugin
+     * Clear of a player's favourite tags.
      *
-     * @return A map of all the original tags.
+     * @param uuid The UUID of the player.
      */
-    public @NotNull Map<String, Object> getDefaultTags() {
-        return new LinkedHashMap<>() {{
+    public void clearFavourites(UUID uuid) {
+        this.rosePlugin.getManager(DataManager.class).clearFavourites(uuid);
+    }
 
-            // First Tag
-            this.put("#0", "Configure the plugin tags here.");
-            this.put("tags.eternaltags.name", "EternalTags");
-            this.put("tags.eternaltags.tag", "&7[#99ff99&lEternalTags&7]");
-            this.put("tags.eternaltags.description", Collections.singletonList("The default EternalTags Tag."));
-            this.put("tags.eternaltags.permission", "eternaltags.tag.eternaltags");
-            this.put("tags.eternaltags.order", 1);
-            this.put("tags.eternaltags.icon", "NAME_TAG");
+    /**
+     * Get the tags in a category
+     *
+     * @param category The category
+     * @return The tags in the category
+     */
+    public List<Tag> getTagsInCategory(Category category) {
+        if (!this.categoriesEnabled || category.isGlobal()) // Categories are disabled or the category is default
+            return new ArrayList<>(this.cachedTags.values());
 
-            // Gradient Tag
-            this.put("tags.gradient.name", "Gradient");
-            this.put("tags.gradient.tag", "&7[<g:#ED213A:#93291E>Gradient&7]");
-            this.put("tags.gradient.description", Collections.singletonList("An automagically formatted gradient."));
-            this.put("tags.gradient.permission", "eternaltags.tag.gradient");
+        return this.cachedTags.values().stream()
+                .filter(tag -> tag.getCategory() != null && tag.getCategory().equalsIgnoreCase(category.getId()))
+                .collect(Collectors.toList());
+    }
 
-            // Rainbow Tag.
-            this.put("tags.rainbow.name", "Rainbow");
-            this.put("tags.rainbow.tag", "&7[<r:0.7>EternalTags&7]");
-            this.put("tags.rainbow.description", Collections.singletonList("An automagically formatted rainbow."));
-            this.put("tags.rainbow.permission", "eternaltags.tag.rainbow");
+    /**
+     * Get the tags in a category that a player has access to
+     *
+     * @param category The category
+     * @param player   The player
+     * @return The tags in the category that the player has access to
+     */
+    public List<Tag> getAccessibleTagsInCategory(Category category, Player player) {
+        if (category.isGlobal()) // Categories are disabled or the category is default
+            return this.getPlayerTags(player);
 
-            // Animated Rainbow Tag
-            this.put("tags.automatic-rainbow.name", "Animated Rainbow");
-            this.put("tags.automatic-rainbow.tag", "&7[<r#15:0.7>Rainbow&7]");
-            this.put("tags.automatic-rainbow.description", Arrays.asList("An rainbow tag that", "will update with every", "message that you send."));
-            this.put("tags.automatic-rainbow.permission", "eternaltags.tag.animated-rainbow");
+        return this.getPlayerTags(player).stream()
+                .filter(tag -> tag.getCategory() != null && tag.getCategory().equalsIgnoreCase(category.getId()))
+                .toList();
+    }
 
-            // Animated Gradient Tag
-            this.put("tags.automatic-gradient.name", "Animated Gradient");
-            this.put("tags.automatic-gradient.tag", "&7[<g#10:#12c2e9:#0c6275>Gradient&7]");
-            this.put("tags.automatic-gradient.description", Arrays.asList("A gradient tag that", "will update with every", "message that you send."));
-            this.put("tags.automatic-gradient.permission", "eternaltags.tag.animated-gradient");
-        }};
+    /**
+     * Check if a player has access to a tag
+     *
+     * @param player The player
+     * @param tag    The tag
+     * @return If the player has access to the tag
+     */
+    public boolean canUseTag(@NotNull Player player, @NotNull Tag tag) {
+        boolean hasAccessToTag = tag.getPermission() == null || player.hasPermission(tag.getPermission());
+
+        // If there's no categories, or all categories are default, then we can just return the tag unlocked status
+        if (!this.categoriesEnabled) {
+            return hasAccessToTag;
+        }
+
+        // If the tag has the category, the category bypasses tag perms.
+        Category category = this.getCategory(tag);
+        if (category != null) {
+            // If the category bypasses tag perms, and the player has the category permission, then they can use the tag or if they have the tag permission
+            if (category.isBypassPermission() && category.getPermission() != null && player.hasPermission(category.getPermission()))
+                return true;
+        }
+
+        return hasAccessToTag;
+    }
+
+    /**
+     * Get all categories from a predicate filter
+     *
+     * @param predicate The predicate
+     * @return The categories
+     */
+    @NotNull
+    public List<Category> getCategories(Predicate<Category> predicate) {
+        return this.cachedCategories.values().stream().filter(predicate).toList();
+    }
+
+    /**
+     * Get the category from a predicate filter
+     *
+     * @param predicate The predicate
+     * @return The category
+     */
+    @Nullable
+    public Category getCategory(Predicate<Category> predicate) {
+        return this.cachedCategories.values().stream().filter(predicate).findFirst().orElse(null);
+    }
+
+    /**
+     * Get the category from an id
+     *
+     * @param id The id
+     * @return The category
+     */
+    @Nullable
+    public Category getCategory(String id) {
+        return this.getCategory(category -> category.getId().equals(id));
+    }
+
+    /**
+     * Get the category from a tag
+     *
+     * @param tag The tag
+     * @return The category
+     */
+    @Nullable
+    public Category getCategory(@NotNull Tag tag) {
+        if (tag.getCategory() == null)
+            return null;
+
+        // Check if the tag has an associated category
+        Category category = this.cachedCategories.get(tag.getCategory());
+        if (category != null)
+            return category;
+
+        // Get the default category if the tag doesn't have an associated category, we don't use global categories here
+        return this.defaultCategory;
+    }
+
+    /**
+     * Get the tags with categories
+     *
+     * @return The tags with categories
+     */
+    public Map<Tag, Category> getTagsWithCategories() {
+        Map<Tag, Category> tagsWithCategories = new HashMap<>();
+        for (Tag tag : this.cachedTags.values()) {
+            Category category = this.getCategory(tag);
+            if (category != null)
+                tagsWithCategories.put(tag, category);
+        }
+
+        return tagsWithCategories;
+    }
+
+    /**
+     * Does the player have the group tag active?
+     *
+     * @param player The player
+     * @return The tags with categories that the player has access to
+     */
+    public boolean hasPrimaryGroupTag(@NotNull Player player) {
+        if (!VaultHook.isEnabled() || !this.usingGroupDefaults())
+            return false;
+
+        String userTag = Optional.ofNullable(this.getUserTag(player.getUniqueId()))
+                .map(Tag::getId)
+                .orElse(null);
+
+        return userTag != null && userTag.equals(this.getGroupTag(player));
+    }
+
+    /**
+     * Get the tag for a group
+     *
+     * @param group The group
+     * @return The tag
+     */
+    @Nullable
+    public String getGroupTag(String group) {
+        if (!VaultHook.isEnabled() || !this.usingGroupDefaults())
+            return null;
+
+        return this.defaultTagGroups.get(group);
+    }
+
+    /**
+     * Get the tag for a group
+     *
+     * @param player The player
+     * @return The tag
+     */
+    @Nullable
+    public String getGroupTag(@NotNull Player player) {
+        if (!VaultHook.isEnabled() || !this.usingGroupDefaults())
+            return null;
+
+        String group = VaultHook.getPrimaryGroup(player);
+        String tag = this.defaultTagGroups.get(group);
+        if (tag == null)
+            return null;
+
+        return switch (tag) {
+            case "default" -> Setting.DEFAULT_TAG.getString();
+            case "random" -> this.getRandomTag(player).getId();
+            case "none" -> null;
+            default -> this.cachedTags.containsKey(tag) ? tag : null;
+        };
+    }
+
+    /**
+     * Get the tag placeholders for the given player
+     *
+     * @param tag The tag
+     * @return The tag placeholders
+     */
+    private StringPlaceholders getTagPlaceholders(Tag tag) {
+        return StringPlaceholders.builder()
+                .addPlaceholder("id", tag.getId())
+                .addPlaceholder("name", tag.getName())
+                .addPlaceholder("description", String.join(Setting.DESCRIPTION_DELIMITER.getString(), tag.getDescription()))
+                .addPlaceholder("permission", tag.getPermission())
+                .addPlaceholder("order", tag.getOrder())
+                .build();
     }
 
     public Map<String, Tag> getCachedTags() {
         return cachedTags;
+    }
+
+    public Map<String, Category> getCachedCategories() {
+        return cachedCategories;
+    }
+
+    public boolean isCategoriesEnabled() {
+        return categoriesEnabled;
+    }
+
+    public Category getDefaultCategory() {
+        return defaultCategory;
+    }
+
+    public Category getGlobalCategory() {
+        return globalCategory;
     }
 
 }

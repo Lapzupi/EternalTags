@@ -7,8 +7,8 @@ import dev.rosewood.rosegarden.command.framework.RoseCommandWrapper;
 import dev.rosewood.rosegarden.command.framework.annotation.RoseExecutable;
 import dev.rosewood.rosegarden.command.framework.types.GreedyString;
 import org.bukkit.entity.Player;
-import xyz.oribuin.eternaltags.gui.TagsGUI;
-import xyz.oribuin.eternaltags.manager.MenuManager;
+import xyz.oribuin.eternaltags.gui.MenuProvider;
+import xyz.oribuin.eternaltags.gui.menu.TagsGUI;
 
 public class SearchCommand extends RoseCommand {
 
@@ -18,7 +18,8 @@ public class SearchCommand extends RoseCommand {
 
     @RoseExecutable
     public void execute(CommandContext context, GreedyString keyword) {
-        this.rosePlugin.getManager(MenuManager.class).get(TagsGUI.class).open((Player) context.getSender(), keyword.get());
+        MenuProvider.get(TagsGUI.class)
+                .open((Player) context.getSender(), tag -> tag.getId().contains(keyword.get()) || tag.getName().contains(keyword.get()));
     }
 
     @Override

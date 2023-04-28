@@ -4,6 +4,7 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 import xyz.oribuin.eternaltags.manager.TagsManager;
+import xyz.oribuin.eternaltags.obj.Category;
 import xyz.oribuin.eternaltags.obj.Tag;
 
 import java.util.UUID;
@@ -30,7 +31,7 @@ public class EternalAPI {
      */
     @Nullable
     public Tag getUserTag(UUID uuid) {
-        return this.getTagManager().getTagFromUUID(uuid);
+        return this.getTagManager().getUserTag(uuid);
     }
 
     /**
@@ -42,7 +43,7 @@ public class EternalAPI {
      */
     @Nullable
     public Tag getOnlineTag(Player player) {
-        return this.tagManager.getPlayersTag(player);
+        return this.tagManager.getUserTag(player);
     }
 
     /**
@@ -55,6 +56,28 @@ public class EternalAPI {
         this.tagManager.setTag(player.getUniqueId(), tag);
     }
 
+    /**
+     * Get a category from the id
+     *
+     * @param id The id of the tag
+     * @return The [Category] belonging to the id, This category is nullable
+     */
+    @Nullable
+    public Category getCategory(String id) {
+        return this.tagManager.getCategory(id);
+    }
+
+    /**
+     * Get the category of a tag
+     *
+     * @param tag The tag
+     * @return The [Category] belonging to the tag, This category is nullable
+     */
+    @Nullable
+    public Category getCategory(Tag tag) {
+        return this.tagManager.getCategory(tag);
+    }
+
     public static EternalAPI getInstance() {
         if (instance == null)
             instance = new EternalAPI();
@@ -64,4 +87,5 @@ public class EternalAPI {
     public TagsManager getTagManager() {
         return tagManager;
     }
+
 }

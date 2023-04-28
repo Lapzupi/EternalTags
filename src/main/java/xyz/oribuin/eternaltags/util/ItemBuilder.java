@@ -1,7 +1,5 @@
 package xyz.oribuin.eternaltags.util;
 
-import com.mojang.authlib.GameProfile;
-import com.mojang.authlib.properties.Property;
 import org.bukkit.Color;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -17,11 +15,11 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.jetbrains.annotations.Nullable;
+import xyz.oribuin.eternaltags.util.nms.SkullUtils;
 
-import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 
 public class ItemBuilder {
 
@@ -35,6 +33,11 @@ public class ItemBuilder {
         this.item = item.clone();
     }
 
+    public ItemBuilder setMaterial(Material material) {
+        this.item.setType(material);
+        return this;
+    }
+
     /**
      * Set the ItemStack's Display Name.
      *
@@ -42,7 +45,7 @@ public class ItemBuilder {
      * @return Item.Builder.
      */
     @SuppressWarnings("deprecation")
-    public ItemBuilder setName(String text) {
+    public ItemBuilder setName(@Nullable String text) {
         final ItemMeta meta = this.item.getItemMeta();
         if (meta == null || text == null)
             return this;
@@ -60,7 +63,7 @@ public class ItemBuilder {
      * @return Item.Builder.
      */
     @SuppressWarnings("deprecation")
-    public ItemBuilder setLore(List<String> lore) {
+    public ItemBuilder setLore(@Nullable List<String> lore) {
         final ItemMeta meta = this.item.getItemMeta();
         if (meta == null || lore == null)
             return this;
@@ -78,7 +81,7 @@ public class ItemBuilder {
      * @return Item.Builder.
      */
     @SuppressWarnings("deprecation")
-    public ItemBuilder setLore(String... lore) {
+    public ItemBuilder setLore(@Nullable String... lore) {
         final ItemMeta meta = this.item.getItemMeta();
         if (meta == null || lore == null)
             return this;
@@ -237,30 +240,17 @@ public class ItemBuilder {
         return this;
     }
 
-    public ItemBuilder setTexture(String texture) {
-        if (item.getType() != Material.PLAYER_HEAD)
-            return this;
-
-        if (texture == null)
+    public ItemBuilder setTexture(@Nullable String texture) {
+        if (item.getType() != Material.PLAYER_HEAD || texture == null)
             return this;
 
         final SkullMeta skullMeta = (SkullMeta) item.getItemMeta();
         if (skullMeta == null)
             return this;
 
-        final Field field;
-        try {
-            field = skullMeta.getClass().getDeclaredField("profile");
-            field.setAccessible(true);
-            final GameProfile profile = new GameProfile(UUID.randomUUID(), null);
-            profile.getProperties().put("textures", new Property("textures", texture));
-
-            field.set(skullMeta, profile);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            e.printStackTrace();
-        }
-
+        SkullUtils.setSkullTexture(skullMeta, texture);
         item.setItemMeta(skullMeta);
+
         return this;
     }
 
@@ -282,7 +272,7 @@ public class ItemBuilder {
 
     public ItemBuilder setModel(int model) {
         ItemMeta meta = this.item.getItemMeta();
-        if (meta == null)
+        if (meta == null || model == -1)
             return this;
 
         meta.setCustomModelData(model);
