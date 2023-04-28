@@ -1,6 +1,5 @@
 package xyz.oribuin.eternaltags.listener;
 
-import dev.rosewood.rosegarden.utils.StringPlaceholders;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.messaging.PluginMessageListener;

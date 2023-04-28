@@ -21,7 +21,7 @@ public abstract class Action {
      */
     public abstract void execute(@NotNull Player player, @NotNull StringPlaceholders placeholders);
 
-    public String getName() {
+    public @NotNull String getName() {
         return name;
     }
 

@@ -129,14 +129,14 @@ public class TagUser {
     /**
      * @return The player's favourite tags.
      */
-    public Set<String> getFavourites() {
+    public @NotNull Set<String> getFavourites() {
         return this.favourites;
     }
 
     /**
      * @param favourites Set the player's favourite tags.
      */
-    public void setFavourites(Set<String> favourites) {
+    public void setFavourites(@NotNull Set<String> favourites) {
         this.favourites = favourites;
     }
 

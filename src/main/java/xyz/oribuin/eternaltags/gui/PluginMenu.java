@@ -203,7 +203,7 @@ public abstract class PluginMenu {
                 continue;
             }
 
-            List<Action> actionList = new ArrayList<Action>();
+            List<Action> actionList = new ArrayList<>();
             customActions.getStringList(key)
                     .stream()
                     .map(PluginAction::parse)

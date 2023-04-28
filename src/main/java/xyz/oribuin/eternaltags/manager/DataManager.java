@@ -4,8 +4,6 @@ import com.google.gson.Gson;
 import dev.rosewood.rosegarden.RosePlugin;
 import dev.rosewood.rosegarden.database.DataMigration;
 import dev.rosewood.rosegarden.manager.AbstractDataManager;
-import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 import xyz.oribuin.eternaltags.database.migration._1_CreateInitialTables;
@@ -24,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 public class DataManager extends AbstractDataManager {
 
@@ -232,7 +229,7 @@ public class DataManager extends AbstractDataManager {
                 final ResultSet result = statement.executeQuery();
                 while (result.next()) {
                     final String id = result.getString("tagId");
-                    final List<String> description = gson.fromJson(result.getString("description"), TagDescription.class).getDescription();
+                    final List<String> description = gson.fromJson(result.getString("description"), TagDescription.class).description();
 
                     Tag tag = new Tag(id, result.getString("name"), result.getString("tag"));
                     tag.setPermission(result.getString("permission"));
