@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "xyz.oribuin"
-version = "1.2.1-SNAPSHOT"
+version = "1.2.1-Lapzupi"
 
 java {
     toolchain {
@@ -64,7 +64,7 @@ tasks {
             exclude("net.kyori:*")
         }
         relocate("dev.rosewood.rosegarden", "xyz.oribuin.eternaltags.libs.rosegarden")
-        relocate("dev.triumphteam.gui", "xyz.oribuin..eternaltags.libs.gui")
+        relocate("dev.triumphteam.gui", "xyz.oribuin.eternaltags.libs.gui")
     }
     
     compileJava {
