@@ -13,7 +13,6 @@ import xyz.oribuin.eternaltags.command.command.edit.EditNameCommand;
 import xyz.oribuin.eternaltags.command.command.edit.EditOrderCommand;
 import xyz.oribuin.eternaltags.command.command.edit.EditPermissionCommand;
 import xyz.oribuin.eternaltags.command.command.edit.EditTagCommand;
-import xyz.oribuin.eternaltags.obj.Tag;
 
 public class EditCommand extends RoseCommand {
 
@@ -28,6 +27,7 @@ public class EditCommand extends RoseCommand {
                 EditTagCommand.class);
     }
 
+    @SuppressWarnings("EmptyMethod")
     @RoseExecutable
     public void execute(CommandContext context, RoseSubCommand command) {
         // Has no functionality, just used to pass the tag to the subcommand

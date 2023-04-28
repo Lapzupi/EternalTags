@@ -107,6 +107,7 @@ public class Expansion extends PlaceholderExpansion {
         return "Oribuin";
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public @NotNull String getVersion() {
         return this.plugin.getDescription().getVersion();

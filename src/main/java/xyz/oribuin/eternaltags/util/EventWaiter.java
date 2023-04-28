@@ -23,7 +23,7 @@ import java.util.function.Predicate;
 @SuppressWarnings("unchecked")
 public class EventWaiter implements Listener {
 
-    private final Map<Class<?>, Set<WaitingEvent>> waitingEvents = new HashMap<>();
+    private final Map<Class<?>, Set<WaitingEvent<?>>> waitingEvents = new HashMap<>();
 
     /**
      * Waits for an event to occur.

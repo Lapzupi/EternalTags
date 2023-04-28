@@ -4,6 +4,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.player.PlayerEvent;
+import org.jetbrains.annotations.NotNull;
 import xyz.oribuin.eternaltags.obj.Tag;
 
 public class TagEquipEvent extends PlayerEvent implements Cancellable {
@@ -26,7 +27,7 @@ public class TagEquipEvent extends PlayerEvent implements Cancellable {
     }
 
     @Override
-    public HandlerList getHandlers() {
+    public @NotNull HandlerList getHandlers() {
         return list;
     }
 
