@@ -75,7 +75,7 @@ tasks {
 }
 
 bukkit {
-    name = "EternalTags (Lapzupi)"
+    name = "LapzupiEternalTags"
     main = "xyz.oribuin.eternaltags.EternalTags"
     version = rootProject.version.toString()
     authors = listOf("Oribuin", "sarhatabaot")

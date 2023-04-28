@@ -9,6 +9,9 @@ import org.bukkit.inventory.ItemStack;
  * @author sarhatabaot
  */
 public final class ItemsAdderHook {
+    private ItemsAdderHook(){
+        throw new UnsupportedOperationException();
+    }
 
     /**
      *

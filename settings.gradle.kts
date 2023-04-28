@@ -7,7 +7,7 @@ dependencyResolutionManagement {
             library("annotations", "org.jetbrains:annotations:23.0.0")
             library("oraxen", "com.github.oraxen:oraxen:afc4903680")
             
-            version("adventure", "4.11.0")
+            version("adventure", "4.13.1")
             library("adventure-api", "net.kyori","adventure-api").versionRef("adventure")
             library("adventure-legacy", "net.kyori","adventure-text-serializer-legacy").versionRef("adventure")
             library("adventure-gson", "net.kyori","adventure-text-serializer-gson").versionRef("adventure")

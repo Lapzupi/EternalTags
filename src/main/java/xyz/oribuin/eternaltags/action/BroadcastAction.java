@@ -16,7 +16,7 @@ public class BroadcastAction extends Action {
     @Override
     @SuppressWarnings("deprecation")
     public void execute(@NotNull Player player, @NotNull StringPlaceholders placeholders) {
-        if (this.getMessage().length() == 0)
+        if (this.getMessage().isEmpty())
             return;
 
         Bukkit.broadcast(HexUtils.colorify(PlaceholderAPI.setPlaceholders(player, placeholders.apply(this.getMessage()))), "");

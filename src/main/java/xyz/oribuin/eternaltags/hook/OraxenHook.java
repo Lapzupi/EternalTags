@@ -7,6 +7,9 @@ import org.bukkit.Bukkit;
 import java.util.Optional;
 
 public final class OraxenHook {
+    private OraxenHook() {
+        throw new UnsupportedOperationException();
+    }
 
     private static final String pluginIdentifier = "oraxen:";
 

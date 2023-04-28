@@ -30,8 +30,9 @@ public class Expansion extends PlaceholderExpansion {
     public String onRequest(@Nullable OfflinePlayer offlineUser, @NotNull String params) {
 
         // Require a player for these placeholders
-        if (offlineUser == null)
+        if (offlineUser == null) {
             return "Error: Player is null";
+        }
 
         // Allow the ability to get any tag from the id
         final String[] args = params.split("_");
