@@ -152,8 +152,9 @@ public final class TagsUtils {
     public static ItemStack getItemStack(@NotNull CommentedConfigurationSection config, @NotNull String path, @Nullable Player player, @Nullable StringPlaceholders placeholders) {
         ItemStack baseItem = getBaseItem(config, player, path);
 
-        if (placeholders == null)
+        if (placeholders == null) {
             placeholders = StringPlaceholders.empty();
+        }
 
         // Format the item lore
         StringPlaceholders finalPlaceholders = placeholders;
@@ -257,7 +258,7 @@ public final class TagsUtils {
      */
     public static String format(Player player, String text, StringPlaceholders placeholders) {
         if (text == null)
-            return null;
+            return "";
 
         return HexUtils.colorify(PlaceholderAPI.setPlaceholders(player, placeholders.apply(text)));
     }

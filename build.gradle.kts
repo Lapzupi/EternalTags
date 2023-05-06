@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "xyz.oribuin"
-version = "1.2.1-Lapzupi"
+version = "1.2.2-Lapzupi"
 
 java {
     toolchain {
