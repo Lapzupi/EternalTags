@@ -28,10 +28,12 @@ public class TagsCommand extends BaseCommand {
             return;
         }
 
-        if (Setting.OPEN_CATEGORY_GUI_FIRST.getBoolean())
+        if (Setting.OPEN_CATEGORY_GUI_FIRST.getBoolean()) {
             MenuProvider.get(CategoryGUI.class).open(player);
-        else
+        }
+        else {
             MenuProvider.get(TagsGUI.class).open(player, null);
+        }
     }
 
     @Override
