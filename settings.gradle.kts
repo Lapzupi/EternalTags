@@ -1,4 +1,4 @@
-rootProject.name = "EternalTags"
+rootProject.name = "LapzupiEternalTags"
 
 dependencyResolutionManagement {
     versionCatalogs {

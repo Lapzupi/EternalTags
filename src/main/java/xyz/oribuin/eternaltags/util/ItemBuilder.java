@@ -179,7 +179,7 @@ public class ItemBuilder {
         if (meta == null)
             return this;
 
-        meta.addEnchant(Enchantment.PROTECTION_EXPLOSIONS, 1, true);
+        meta.addEnchant(Enchantment.BLAST_PROTECTION, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         item.setItemMeta(meta);
 

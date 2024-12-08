@@ -152,9 +152,6 @@ public class TagsManager extends Manager {
                 }
             }
 
-            if (OraxenHook.enabled())
-                obj.setTag(OraxenHook.parseGlyph(tag));
-
             this.cachedTags.put(key.toLowerCase(), obj);
         });
     }
