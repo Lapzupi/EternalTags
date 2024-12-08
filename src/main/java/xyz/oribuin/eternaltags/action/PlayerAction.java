@@ -14,7 +14,7 @@ public class PlayerAction extends Action {
 
     @Override
     public void execute(@NotNull Player player, @NotNull StringPlaceholders placeholders) {
-        if (this.getMessage().length() == 0)
+        if (this.getMessage().isEmpty())
             return;
 
         Bukkit.dispatchCommand(player, PlaceholderAPI.setPlaceholders(player, placeholders.apply(this.getMessage())));

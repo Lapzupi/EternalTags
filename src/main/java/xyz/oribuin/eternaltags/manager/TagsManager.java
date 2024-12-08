@@ -16,7 +16,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import xyz.oribuin.eternaltags.event.TagDeleteEvent;
 import xyz.oribuin.eternaltags.event.TagSaveEvent;
-import xyz.oribuin.eternaltags.hook.OraxenHook;
 import xyz.oribuin.eternaltags.hook.VaultHook;
 import xyz.oribuin.eternaltags.listener.BungeeListener;
 import xyz.oribuin.eternaltags.manager.ConfigurationManager.Setting;
@@ -139,7 +138,7 @@ public class TagsManager extends Manager {
 
                 // Read from a configuration section
                 CommentedConfigurationSection iconSection = tagSection.getConfigurationSection(key + ".icon");
-                if (iconSection != null && iconSection.getKeys(false).size() > 0) {
+                if (iconSection != null && !iconSection.getKeys(false).isEmpty()) {
                     ItemStack itemStack = TagsUtils.getItemStack(tagSection, key + ".icon");
                     if (itemStack != null)
                         obj.setIcon(itemStack);
@@ -204,7 +203,7 @@ public class TagsManager extends Manager {
                 .findFirst()
                 .orElse(null);
 
-        this.categoriesEnabled = this.cachedCategories.size() > 0;
+        this.categoriesEnabled = !this.cachedCategories.isEmpty();
     }
 
     /**

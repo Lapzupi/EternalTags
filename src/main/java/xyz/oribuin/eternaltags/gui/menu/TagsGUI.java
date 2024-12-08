@@ -194,7 +194,7 @@ public class TagsGUI extends PluginMenu {
                 if (!manager.canUseTag(player, tag))
                     return;
                 
-                if (tagActions.size() == 0) {
+                if (tagActions.isEmpty()) {
                     if (event.isShiftClick()) {
                         this.toggleFavourite(player, tag);
                         this.addTags(gui, player, filter);

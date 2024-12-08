@@ -26,7 +26,7 @@ public final class ItemsAdderHook {
     }
 
     /**
-     * @return If oraxen is enabled or not
+     * @return If itemsadder is enabled or not
      */
     public static boolean enabled() {
         return Bukkit.getPluginManager().isPluginEnabled("ItemsAdder");

@@ -14,7 +14,7 @@ public class SoundAction extends Action {
 
     @Override
     public void execute(@NotNull Player player, @NotNull StringPlaceholders placeholders) {
-        if (this.getMessage().length() == 0)
+        if (this.getMessage().isEmpty())
             return;
 
         String[] args = this.getMessage().split(" ");

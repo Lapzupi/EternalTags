@@ -165,7 +165,7 @@ public abstract class PluginMenu {
             if (descFormat == null)
                 descFormat = line.substring(0, line.indexOf("%description%"));
 
-            lore.add(TagsUtils.format(player, line.replace("%description%", tag.getDescription().get(0))));
+            lore.add(TagsUtils.format(player, line.replace("%description%", tag.getDescription().getFirst())));
             for (int j = 1; j < tag.getDescription().size(); j++) {
                 lore.add(descFormat + tag.getDescription().get(j));
             }
