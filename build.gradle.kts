@@ -2,6 +2,7 @@ plugins {
     `java-library`
     alias(libs.plugins.shadow)
     alias(libs.plugins.bukkit.yml)
+    alias(libs.plugins.paper.userdev)
 }
 
 group = "xyz.oribuin"
@@ -12,10 +13,22 @@ java {
         languageVersion.set(JavaLanguageVersion.of(21))
     }
 }
+repositories {
+    mavenCentral()
+    maven("https://libraries.minecraft.net")
+    maven("https://repo.papermc.io/repository/maven-public/")
+    maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots/")
+    maven("https://repo.rosewooddev.io/repository/public/")
+    maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
+    maven("https://repo.codemc.org/repository/maven-public/")
+    maven("https://jitpack.io")
+    maven("https://repo.mattstudios.me/artifactory/public/")
+
+}
 
 dependencies {
+    paperweight.paperDevBundle("1.21.1-R0.1-SNAPSHOT")
     // General Dependencies
-    compileOnly(libs.paper.api)
     compileOnly(libs.annotations)
     // Plugins
     compileOnly(libs.vault.api)
@@ -33,6 +46,7 @@ dependencies {
 }
 
 tasks {
+    paperweight.reobfArtifactConfiguration = io.papermc.paperweight.userdev.ReobfArtifactConfiguration.MOJANG_PRODUCTION
     build {
         dependsOn(shadowJar)
     }
